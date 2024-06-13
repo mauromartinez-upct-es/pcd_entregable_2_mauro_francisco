@@ -1,10 +1,15 @@
+from gestion_sensores import *
+from numpy import mean, median, std
+import pytest
+
 from abc import ABC, abstractmethod
 from functools import reduce
 import math
 import random
 import time
 from datetime import datetime
-
+from numpy import mean, median, std
+import pytest
 
 class Gestor:
     _unicaInstancia = None
@@ -79,7 +84,10 @@ class Operator(Observer):
 ### Chain of responsability
 class Handler:
     def __init__(self, succesor=None):
-        self.succesor=succesor
+        if isinstance(succesor, Handler) or not succesor:
+            self.succesor=succesor
+        else:
+            raise Exception('El siguiente elemento en la cadena de de responsabilidad debe de ser un Handler')
     def handle_request(self,requiest):
         pass
     
@@ -94,17 +102,18 @@ class Estadisticos(Handler):
         mediana = Mediana('mediana')
         maximo = Maximo('maximo')
         contexto.establecerEstrategia(media)
-        contexto.calculoEstadisticos()
-        if isinstance(self.succesor, Handler):
+        media, de = contexto.calculoEstadisticos()
+        print(f"La temperatura media de los ultimos 60 segundos es: {media}\nLa desviación estandar es: {de}")
+        if self.succesor:
             self.succesor.handle_request(request)
-        else:
-            raise Exception('El siguiente elemento en la cadena de de responsabilidad debe de ser un Handler')
 
 class Umbral(Handler):
     def handle_request(self, request):
         if request[-1] > 32:
             print('¡ALERTA! La temperatura ha sobrepasado los 32 grados. ¡ALERTA!')
-        self.succesor.handle_request(request)
+        if self.succesor:
+            self.succesor.handle_request(request)
+
 
 class Crecimiento(Handler):
     def handle_request(self, request):
@@ -127,7 +136,7 @@ class ContextoCalculoEstadisticos:
             raise Exception('La estrategia nueva debe de ser un objeto Estrategia')
 
     def calculoEstadisticos(self):
-        self.estrategia.calculo(self.datos)
+        return self.estrategia.calculo(self.datos)
 
 class Estrategia(ABC):
     @abstractmethod
@@ -146,8 +155,7 @@ class Media(Estrategia):
         suma_cuadrados_desviaciones = reduce(lambda x, y: x + y, desviaciones)
         # Calcular la desviación estándar
         desviacion_estandar = math.sqrt(suma_cuadrados_desviaciones / len(datos))
-        print(f"La temperatura media de los ultimos 60 segundos es: {round(media, 2)}\nLa desviación estandar es: {round(desviacion_estandar, 2)}")
-
+        return round(media, 2), round(desviacion_estandar, 2)
 
 class Mediana(Estrategia):
     def __init__(self, nombre):
@@ -172,7 +180,7 @@ class Maximo(Estrategia):
     def calculo(self, datos):
         maximo = max(datos)
         minimo = min(datos)
-        print(f"La temperatura máxima de los ultimos 60 segundos es {maximo} y la mínima es {minimo}")
+        return maximo, minimo
 
 
 def simular_sensor(sensor):
@@ -182,7 +190,3 @@ def simular_sensor(sensor):
         sensor.set_value((tiempo, temperatura))
         time.sleep(5)
 
-
-if __name__ == '__main__':
-    g = Gestor.obtener_instancia()
-    Gestor.iniciar_proceso()
